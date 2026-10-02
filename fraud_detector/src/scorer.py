@@ -9,7 +9,9 @@ logger.info('Importing pretrained model...')
 
 # Import model
 model = CatBoostClassifier()
-model.load_model('./models/my_catboost.cbm')
+# model.load_model('./models/my_catboost.cbm')
+model.load_model('./models/trained_catboost.cbm')
+
 
 # Define optimal threshold
 model_th = 0.98

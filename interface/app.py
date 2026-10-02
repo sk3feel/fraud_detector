@@ -5,6 +5,10 @@ import json
 import time
 import os
 import uuid
+import altair as alt
+import psycopg2
+from contextlib import closing
+
 
 # Конфигурация Kafka
 KAFKA_CONFIG = {
@@ -100,3 +104,44 @@ if st.session_state.uploaded_files:
                             st.rerun()
                 else:
                     st.error("Файл не содержит данных")
+
+
+st.subheader("Результаты скоринга")
+
+if st.button("Посмотреть результаты"):
+    with closing(psycopg2.connect(
+        host=os.environ["POSTGRES_HOST"],
+        dbname=os.environ["POSTGRES_DB"],
+        user=os.environ["POSTGRES_USER"],
+        password=os.environ["POSTGRES_PASSWORD"],
+    )) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT transaction_id, score, fraud_flag, created_at
+                FROM scores
+                WHERE fraud_flag = 1
+                ORDER BY created_at DESC, transaction_id DESC
+                LIMIT 10
+            """)
+            fraud = pd.DataFrame(
+                cursor.fetchall(),
+                columns=["transaction_id", "score", "fraud_flag", "created_at"],
+            )
+
+            cursor.execute("""
+                SELECT score
+                FROM scores
+                ORDER BY created_at DESC, transaction_id DESC
+                LIMIT 100
+            """)
+            scores = pd.DataFrame(cursor.fetchall(), columns=["score"])
+
+    st.write("10 ласт фродовых транзакций")
+    st.dataframe(fraud, hide_index=True)
+
+    st.write("Гистограмма распределение скоров последних 100 транзакций")
+    chart = alt.Chart(scores).mark_bar().encode(
+        x=alt.X("score:Q", bin=True, title="Скор"),
+        y=alt.Y("count():Q", title="Количество транзакций"),
+    )
+    st.altair_chart(chart, use_container_width=True)

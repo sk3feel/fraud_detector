@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 # Set kafka configuration file
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 TRANSACTIONS_TOPIC = os.getenv("KAFKA_TRANSACTIONS_TOPIC", "transactions")
-SCORING_TOPIC = os.getenv("KAFKA_SCORING_TOPIC", "scoring")
+SCORING_TOPIC = os.getenv("KAFKA_SCORING_TOPIC", "scores")
 
 
 class ProcessingService:
@@ -65,13 +65,17 @@ class ProcessingService:
                 processed_df = run_preproc(self.train, input_df)
                 submission = make_pred(processed_df, "kafka_stream")
 
-                # Добавляем ID в результат
-                submission['transaction_id'] = transaction_id
+
+                scores_data = {
+                    'transaction_id': transaction_id,
+                    'score': float(submission.iloc[0]['score']),
+                    'fraud_flag': int(submission.iloc[0]['fraud_flag'])
+                }
 
                 # Отправка результата в топик scoring
                 self.producer.produce(
-                    'scoring',
-                    value=submission.to_json(orient='records')
+                    SCORING_TOPIC,
+                    value=json.dumps(scores_data)
                 )
                 self.producer.flush()
             except Exception as e:
